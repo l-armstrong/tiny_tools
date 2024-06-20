@@ -7,12 +7,18 @@ def echo(*args):
     sys.stdout.flush()
 
 def commandtype(*args):
+    import os
     for command in args:
         if command in commands:
             print(f'{command} is a shell builtin')
         else:
-            print(f'{command}: not found')
-
+            for f in os.environ['PATH'].split(":"):
+                if os.path.isdir(f) and command in os.listdir(f):
+                    print(f'{f}/{command}')
+                    break
+            else:
+                print(f'{command}: not found')
+            
 commands = {
     "exit": lambda x: exit(int(x)), 
     "echo": echo, 
@@ -24,7 +30,6 @@ def main():
         sys.stdout.write("$ ")
         sys.stdout.flush()
         command, *args = input().split()
-
         if command not in commands:
             print(f'{command}: command not found')
         else:
