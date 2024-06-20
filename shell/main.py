@@ -28,11 +28,12 @@ def commandtype(*args):
                     break
             else:
                 print(f"{command}: not found")
-        
-builtin_commands = {
-    "exit": lambda x: exit(int(x)), 
+
+builtin_commands = { 
     "echo": echo, 
-    "type": commandtype
+    "type": commandtype,
+    "exit": lambda x=0: exit(int(x)),
+    "pwd" : lambda: sys.stdout.write(os.getcwd() + '\n')
 }
 
 def main():
