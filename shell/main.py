@@ -29,7 +29,15 @@ def commandtype(*args):
             else:
                 print(f"{command}: not found")
 
+def change_dir(*args):
+    home = os.path.expanduser("~")
+    try:
+        os.chdir(f'{"".join(*args)}')
+    except FileNotFoundError:
+        sys.stdout.write(f'cd: {"".join(*args)}: No such file or directory' + '\n')
+
 builtin_commands = { 
+    "cd"  : change_dir,
     "echo": echo, 
     "type": commandtype,
     "exit": lambda x=0: exit(int(x)),
