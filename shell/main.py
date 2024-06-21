@@ -30,8 +30,9 @@ def commandtype(*args):
                 print(f"{command}: not found")
 
 def change_dir(*args):
-    home = os.path.expanduser("~")
+    args = list(args)
     try:
+        if "~" in args: args[args.index("~")] = os.path.expanduser("~")
         os.chdir(f'{"".join(*args)}')
     except FileNotFoundError:
         sys.stdout.write(f'cd: {"".join(*args)}: No such file or directory' + '\n')
