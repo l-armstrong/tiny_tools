@@ -74,6 +74,8 @@ def main():
         print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {file_info['length']}")
         print(f"Info Hash: {infohash}\nPiece Length: {file_info['piece length']}")
         print(f"Piece Hashes:\n{listpiecehashes(file_info['pieces'])}")
+    elif command == "peers":
+        pass 
     else:
         raise NotImplementedError(f"Unknown command {command}")
 
