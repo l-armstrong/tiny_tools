@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 
@@ -28,28 +29,48 @@ def decode_bencode(bencoded_value):
             return res, data[1:]
         else:
             raise ValueError("Invalid encoded value")
+    
     decoded_value, _ = decode(bencoded_value)
     return decoded_value
+
+def encode_bencode(data):
+    if isinstance(data, int):
+        return f'i{data}e'.encode()
+    elif isinstance(data, str):
+        return f'{len(data)}:{data}'.encode()
+    elif isinstance(data, bytes):
+        return f'{len(data)}:'.encode() + data
+    elif isinstance(data, list):
+        output = b'l'
+        for element in data:
+            output += encode_bencode(element)
+        return output + b'e'
+    elif isinstance(data, dict):
+        output = b'd'
+        for key, value in data.items():
+            output += encode_bencode(key) + encode_bencode(value)
+        return output + b'e'
+    else:
+        raise ValueError(f"{type(data)}: not supported")
 
 def main():
     command = sys.argv[1]
     if command == "decode":
         bencoded_value = sys.argv[2].encode()
-
         def bytes_to_str(data):
             if isinstance(data, bytes):
                 return data.decode()
             raise TypeError(f"Type not serializable: {type(data)}")
-        
         print(json.dumps(decode_bencode(bencoded_value), default=bytes_to_str))
     elif command == "info":
         with open(sys.argv[2], 'rb') as f:
             bencoded_file = f.read()
         decoded_file = decode_bencode(bencoded_file)
-        print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {decoded_file['info']['length']}")
+        file_info = decoded_file['info']
+        infohash = hashlib.sha1(encode_bencode(file_info)).hexdigest()
+        print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {file_info['length']}\nInfo Hash: {infohash}")
     else:
         raise NotImplementedError(f"Unknown command {command}")
-
 
 if __name__ == "__main__":
     main()
