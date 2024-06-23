@@ -54,17 +54,7 @@ def encode_bencode(data):
         raise ValueError(f"{type(data)}: not supported")
 
 def listpiecehashes(pieces):
-    output = ''
-    res = []
-    for i, piece in enumerate(pieces):
-        if i and i % 20 == 0:
-            res.append(output + "\n")
-            output = ''
-        char = hex(piece)[2:] # remove '0x'
-        if len(char) == 1: char = '0' + char # pad 1 character with a '0' 
-        output += char
-    res.append(output)
-    return "".join(res)
+    return "\n".join(pieces[i: i + 20].hex() for i in range(0, len(pieces), 20))
 
 def main():
     command = sys.argv[1]
