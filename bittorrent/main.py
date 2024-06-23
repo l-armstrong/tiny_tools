@@ -53,6 +53,19 @@ def encode_bencode(data):
     else:
         raise ValueError(f"{type(data)}: not supported")
 
+def listpiecehashes(pieces):
+    output = ''
+    res = []
+    for i, piece in enumerate(pieces):
+        if i and i % 20 == 0:
+            res.append(output + "\n")
+            output = ''
+        char = hex(piece)[2:] # remove '0x'
+        if len(char) == 1: char = '0' + char # pad 1 character with a '0' 
+        output += char
+    res.append(output)
+    return "".join(res)
+
 def main():
     command = sys.argv[1]
     if command == "decode":
@@ -68,7 +81,9 @@ def main():
         decoded_file = decode_bencode(bencoded_file)
         file_info = decoded_file['info']
         infohash = hashlib.sha1(encode_bencode(file_info)).hexdigest()
-        print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {file_info['length']}\nInfo Hash: {infohash}")
+        print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {file_info['length']}")
+        print(f"Info Hash: {infohash}\nPiece Length: {file_info['piece length']}")
+        print(f"Piece Hashes:\n{listpiecehashes(file_info['pieces'])}")
     else:
         raise NotImplementedError(f"Unknown command {command}")
 
