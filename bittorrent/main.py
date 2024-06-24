@@ -1,5 +1,6 @@
 import hashlib
 import json
+import requests
 import sys
 
 def decode_bencode(bencoded_value):
@@ -70,12 +71,35 @@ def main():
             bencoded_file = f.read()
         decoded_file = decode_bencode(bencoded_file)
         file_info = decoded_file['info']
-        infohash = hashlib.sha1(encode_bencode(file_info)).hexdigest()
+        info_hash = hashlib.sha1(encode_bencode(file_info)).hexdigest()
         print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {file_info['length']}")
-        print(f"Info Hash: {infohash}\nPiece Length: {file_info['piece length']}")
+        print(f"Info Hash: {info_hash}\nPiece Length: {file_info['piece length']}")
         print(f"Piece Hashes:\n{listpiecehashes(file_info['pieces'])}")
     elif command == "peers":
-        pass 
+        with open(sys.argv[2], 'rb') as f:
+            bencoded_file = f.read()
+        decoded_file = decode_bencode(bencoded_file)
+        file_info = decoded_file['info']
+        info_hash = hashlib.sha1(encode_bencode(file_info)).digest()
+        url = decoded_file['announce'].decode()
+        params = {
+            "info_hash": info_hash,
+            "peer_id": "00112233445566778899",
+            "port": 6881,
+            "uploaded": 0,
+            "downloaded": 0,
+            "left": file_info['length'],
+            "compact": 1 
+        }
+        response = requests.get(url, params=params)
+        decoded_response = decode_bencode(response.content)
+        peers = decoded_response['peers'] 
+        list_of_peers = [peers[i: i + 6] for i in range(0, len(peers), 6)]
+        for peer in list_of_peers:
+            out = []
+            for i in range(4):
+                out.append(str(int.from_bytes(peer[i: i + 1], signed=False)))
+            print(".".join(out) + ":" + str(int.from_bytes(peer[4:6], byteorder="big", signed=False)))
     else:
         raise NotImplementedError(f"Unknown command {command}")
 
