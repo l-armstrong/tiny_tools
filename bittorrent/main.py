@@ -1,6 +1,7 @@
 import hashlib
 import json
 import requests
+import socket
 import sys
 
 def decode_bencode(bencoded_value):
@@ -57,6 +58,11 @@ def encode_bencode(data):
 def listpiecehashes(pieces):
     return "\n".join(pieces[i: i + 20].hex() for i in range(0, len(pieces), 20))
 
+def read_torrent(file):
+    with open(file, "rb") as f:
+        bencode_data = f.read()
+    return decode_bencode(bencode_data)
+
 def main():
     command = sys.argv[1]
     if command == "decode":
@@ -67,18 +73,14 @@ def main():
             raise TypeError(f"Type not serializable: {type(data)}")
         print(json.dumps(decode_bencode(bencoded_value), default=bytes_to_str))
     elif command == "info":
-        with open(sys.argv[2], 'rb') as f:
-            bencoded_file = f.read()
-        decoded_file = decode_bencode(bencoded_file)
+        decoded_file = read_torrent(sys.argv[2])
         file_info = decoded_file['info']
         info_hash = hashlib.sha1(encode_bencode(file_info)).hexdigest()
         print(f"Tracker URL: {decoded_file['announce'].decode()}\nLength: {file_info['length']}")
         print(f"Info Hash: {info_hash}\nPiece Length: {file_info['piece length']}")
         print(f"Piece Hashes:\n{listpiecehashes(file_info['pieces'])}")
     elif command == "peers":
-        with open(sys.argv[2], 'rb') as f:
-            bencoded_file = f.read()
-        decoded_file = decode_bencode(bencoded_file)
+        decoded_file = read_torrent(sys.argv[2])
         file_info = decoded_file['info']
         info_hash = hashlib.sha1(encode_bencode(file_info)).digest()
         url = decoded_file['announce'].decode()
@@ -95,11 +97,33 @@ def main():
         decoded_response = decode_bencode(response.content)
         peers = decoded_response['peers'] 
         list_of_peers = [peers[i: i + 6] for i in range(0, len(peers), 6)]
-        for peer in list_of_peers:
+        peer_identifiers = []
+        for i, peer in enumerate(list_of_peers):
             out = []
-            for i in range(4):
-                out.append(str(int.from_bytes(peer[i: i + 1], signed=False)))
-            print(".".join(out) + ":" + str(int.from_bytes(peer[4:6], byteorder="big", signed=False)))
+            for j in range(4):
+                out.append(str(int.from_bytes(peer[j: j + 1], signed=False)))
+            peer_identifiers.append(".".join(out) + ":" + str(int.from_bytes(peer[4:6], byteorder="big", signed=False)))
+            print(peer_identifiers[i])
+    elif command == "handshake":
+        decoded_file = read_torrent(sys.argv[2])
+        file_info = decoded_file['info']
+        info_hash = hashlib.sha1(encode_bencode(file_info)).digest()
+        peer_ip, peer_port = sys.argv[3].split(":")
+        s = socket.socket(
+            family=socket.AF_INET,
+            type=socket.SOCK_STREAM,
+            proto=socket.IPPROTO_TCP
+        )
+        s.connect((peer_ip, int(peer_port)))
+        protocol_len = 19
+        protocol = b"BitTorrent protocol"
+        payload = protocol_len.to_bytes(1, byteorder="big")
+        payload += protocol + (b'\00' * 8) + info_hash + b'00112233445566778899'
+        s.sendall(payload)
+        data = s.recv(1024)
+        peer_id = data[-20:].hex()
+        print(f'Peer ID: {peer_id}')
+        s.close()
     else:
         raise NotImplementedError(f"Unknown command {command}")
 
