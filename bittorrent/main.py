@@ -124,6 +124,12 @@ def main():
         peer_id = data[-20:].hex()
         print(f'Peer ID: {peer_id}')
         s.close()
+    elif command == "download_piece":
+        print("download pieces")
+        # TODO Read the torrent file for tracker URL
+        # TODO Send GET request for list of peers
+        # TODO Perform a handshake with a peer
+        # TODO exhange peer messages to download the file
     else:
         raise NotImplementedError(f"Unknown command {command}")
 
