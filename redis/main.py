@@ -15,6 +15,37 @@ import threading
 
 store = {}
 
+# def parse_resp(data):
+#     """ Redis serialization protocol parser
+#         https://redis.io/docs/latest/develop/reference/protocol-spec/
+#     """
+#     import datetime
+#     client_request = [
+#         element 
+#         for element in data.decode().split()
+#         if not (element.startswith("$") or element.startswith("*"))
+#     ]
+#     command = client_request[0]
+#     match command.lower():
+#         case "ping":
+#             return "+PONG\r\n".encode()
+#         case "echo":
+#             arg = client_request[1]
+#             return f'${len(arg)}\r\n{arg}\r\n'.encode()
+#         case "set":
+#             key, value = client_request[1], client_request[2]
+#             if 'px' in client_request:
+#                 expiry = client_request[client_request.index('px') + 1]
+#                 store[key] = (value, datetime.datetime.today() + datetime.timedelta(milliseconds=int(expiry)))
+#             else:
+#                 store[key] = (value, None)
+#             return "+OK\r\n".encode()
+#         case "get":
+#             if (key := client_request[1]) in store and (not store[key][1] or store[key][1] >= datetime.datetime.today()):
+#                 value = store[key][0]
+#                 return f'${len(value)}\r\n{value}\r\n'.encode()
+#             return "$-1\r\n".encode() # Key doesn't exist. Return null bulk string
+
 def parse_resp(data):
     """ Redis serialization protocol parser
         https://redis.io/docs/latest/develop/reference/protocol-spec/
@@ -33,12 +64,20 @@ def parse_resp(data):
             return f'${len(arg)}\r\n{arg}\r\n'.encode()
         case "set":
             key, value = client_request[1], client_request[2]
+            if 'px' in client_request:
+                expiry = float(client_request[client_request.index('px') + 1])
+                # Delete the key in a seperate thread when the key expires
+                threading.Timer(expiry / 1000, lambda key: store.pop(key), (key,)).start()
             store[key] = value
             return "+OK\r\n".encode()
         case "get":
             if (key := client_request[1]) in store:
-                return f'${len(store[key])}\r\n{store[key]}\r\n'.encode()
+                value = store[key]
+                return f'${len(value)}\r\n{value}\r\n'.encode()
             return "$-1\r\n".encode() # Key doesn't exist. Return null bulk string
+        case "info":
+            value = "role:master"
+            return f'${len(value)}\r\n{value}\r\n'.encode()
 
 def process_client(connection, address):
     while data := connection.recv(1024):
@@ -46,11 +85,14 @@ def process_client(connection, address):
         connection.sendall(response)
 
 def main():
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=6379)
+    args = parser.parse_args()
+    server_socket = socket.create_server(("localhost", args.port), reuse_port=True)
     while True:
         connection, address = server_socket.accept() # wait for client
         threading.Thread(target=process_client, args=(connection, address)).start()
-
 
 if __name__ == "__main__":
     main()
