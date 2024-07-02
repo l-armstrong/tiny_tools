@@ -50,7 +50,6 @@ def parse_resp(data):
     """ Redis serialization protocol parser
         https://redis.io/docs/latest/develop/reference/protocol-spec/
     """
-    import datetime
     client_request = [
         element 
         for element in data.decode().split()
@@ -83,7 +82,12 @@ def process_client(connection, address):
         connection.sendall(response)
 
 def main():
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    import sys
+    port = 6379
+    if len(sys.argv) > 1 and ('--port' in sys.argv):
+        port = int(sys.argv[sys.argv.index('--port') + 1])
+
+    server_socket = socket.create_server(("localhost", port), reuse_port=True)
     while True:
         connection, address = server_socket.accept() # wait for client
         threading.Thread(target=process_client, args=(connection, address)).start()
