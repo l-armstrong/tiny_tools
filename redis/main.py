@@ -75,6 +75,9 @@ def parse_resp(data):
                 value = store[key]
                 return f'${len(value)}\r\n{value}\r\n'.encode()
             return "$-1\r\n".encode() # Key doesn't exist. Return null bulk string
+        case "info":
+            value = "role:master"
+            return f'${len(value)}\r\n{value}\r\n'.encode()
 
 def process_client(connection, address):
     while data := connection.recv(1024):
@@ -82,16 +85,14 @@ def process_client(connection, address):
         connection.sendall(response)
 
 def main():
-    import sys
-    port = 6379
-    if len(sys.argv) > 1 and ('--port' in sys.argv):
-        port = int(sys.argv[sys.argv.index('--port') + 1])
-
-    server_socket = socket.create_server(("localhost", port), reuse_port=True)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=6379)
+    args = parser.parse_args()
+    server_socket = socket.create_server(("localhost", args.port), reuse_port=True)
     while True:
         connection, address = server_socket.accept() # wait for client
         threading.Thread(target=process_client, args=(connection, address)).start()
-
 
 if __name__ == "__main__":
     main()
