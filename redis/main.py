@@ -1,52 +1,9 @@
 import socket
 import threading
 
-# *1\r\n$4\r\nPING\r\n -> PING 
-# *2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n -> ["ECHO", "hey"]
-
-# WORKS but want to experiement with match command
-# def parse_resp(data):
-#     command = data.split(b'\r\n')[2]
-#     if command.lower() == b"ping":
-#         return b"+PONG\r\n"
-#     elif command.lower() == b"echo":
-#         arg = data.split(b'\r\n')[4]
-#         return f'${len(arg)}\r\n{arg.decode()}\r\n'.encode()
-
 store = {}
 
-# def parse_resp(data):
-#     """ Redis serialization protocol parser
-#         https://redis.io/docs/latest/develop/reference/protocol-spec/
-#     """
-#     import datetime
-#     client_request = [
-#         element 
-#         for element in data.decode().split()
-#         if not (element.startswith("$") or element.startswith("*"))
-#     ]
-#     command = client_request[0]
-#     match command.lower():
-#         case "ping":
-#             return "+PONG\r\n".encode()
-#         case "echo":
-#             arg = client_request[1]
-#             return f'${len(arg)}\r\n{arg}\r\n'.encode()
-#         case "set":
-#             key, value = client_request[1], client_request[2]
-#             if 'px' in client_request:
-#                 expiry = client_request[client_request.index('px') + 1]
-#                 store[key] = (value, datetime.datetime.today() + datetime.timedelta(milliseconds=int(expiry)))
-#             else:
-#                 store[key] = (value, None)
-#             return "+OK\r\n".encode()
-#         case "get":
-#             if (key := client_request[1]) in store and (not store[key][1] or store[key][1] >= datetime.datetime.today()):
-#                 value = store[key][0]
-#                 return f'${len(value)}\r\n{value}\r\n'.encode()
-#             return "$-1\r\n".encode() # Key doesn't exist. Return null bulk string
-
-def parse_resp(data):
+def parse_resp(data, server_info):
     """ Redis serialization protocol parser
         https://redis.io/docs/latest/develop/reference/protocol-spec/
     """
@@ -76,23 +33,40 @@ def parse_resp(data):
                 return f'${len(value)}\r\n{value}\r\n'.encode()
             return "$-1\r\n".encode() # Key doesn't exist. Return null bulk string
         case "info":
-            value = "role:master"
-            return f'${len(value)}\r\n{value}\r\n'.encode()
+            if client_request[1] == "replication":
+                value = f"role:{server_info["role"]}"
+                if server_info["role"] == "master":
+                    value += f"master_replid:{server_info["master_replid"]}"
+                    value += f"master_repl_offset:{server_info["master_repl_offset"]}"
+                output = f'${len(value)}\r\n{value}\r\n'
+                return output.encode()
 
-def process_client(connection, address):
+def process_client(connection, server_info):
     while data := connection.recv(1024):
-        response = parse_resp(data)
+        response = parse_resp(data, server_info)
         connection.sendall(response)
 
 def main():
-    import argparse
+    import argparse 
+    import random
+    import string 
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=6379)
+    parser.add_argument("--replicaof")
     args = parser.parse_args()
     server_socket = socket.create_server(("localhost", args.port), reuse_port=True)
+    role = "master" if not args.replicaof else "slave"
+    master = (role == "master")
+    master_replid = "".join(random.choice(string.ascii_letters + string.digits, k=40))
+    server_info = {
+        "port": args.port,
+        "role": role,
+        "master_replid": master_replid if master else None,
+        "master_repl_offset": 0 if master else None
+    }
     while True:
         connection, address = server_socket.accept() # wait for client
-        threading.Thread(target=process_client, args=(connection, address)).start()
+        threading.Thread(target=process_client, args=(connection, server_info)).start()
 
 if __name__ == "__main__":
     main()
