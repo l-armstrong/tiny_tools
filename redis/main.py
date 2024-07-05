@@ -57,13 +57,20 @@ def main():
     server_socket = socket.create_server(("localhost", args.port), reuse_port=True)
     role = "master" if not args.replicaof else "slave"
     master = (role == "master")
-    master_replid = "".join(random.choice(string.ascii_letters + string.digits, k=40))
+    master_replid = "".join(random.choices(string.ascii_letters + string.digits, k=40))
+    master_host, master_port = args.replicaof.split() if args.replicaof else (None, None)
     server_info = {
         "port": args.port,
         "role": role,
         "master_replid": master_replid if master else None,
-        "master_repl_offset": 0 if master else None
+        "master_repl_offset": 0 if master else None,
+        "master_host": master_host,
+        "master_port": master_port,
     }
+    if args.replicaof:
+        master_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+        master_socket.connect((master_host, int(master_port)))
+        master_socket.sendall(b"*1\r\n$4\r\nPING\r\n")
     while True:
         connection, address = server_socket.accept() # wait for client
         threading.Thread(target=process_client, args=(connection, server_info)).start()
