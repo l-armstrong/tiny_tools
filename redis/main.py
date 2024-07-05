@@ -40,6 +40,12 @@ def parse_resp(data, server_info):
                     value += f"master_repl_offset:{server_info["master_repl_offset"]}"
                 output = f'${len(value)}\r\n{value}\r\n'
                 return output.encode()
+        case "replconf":
+            return "+OK\r\n".encode()
+        case "psync":
+            if "?" in client_request and "-1" in client_request:
+                return f"+FULLRESYNC {server_info["master_replid"]} 0\r\n".encode()
+
 
 def process_client(connection, server_info):
     while data := connection.recv(1024):
