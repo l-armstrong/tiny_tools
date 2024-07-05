@@ -68,9 +68,26 @@ def main():
         "master_port": master_port,
     }
     if args.replicaof:
+        # initiate handshake
+        # send PING to master server 
         master_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
         master_socket.connect((master_host, int(master_port)))
         master_socket.sendall(b"*1\r\n$4\r\nPING\r\n")
+        # recv "PONG" from master
+        master_socket.recv(4)
+        # send REPLCONF twice to master server 
+        master_socket.sendall(f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{args.port}\r\n".encode()) 
+        # recv "OK" from master
+        master_socket.recv(4)
+        # send PSYNC capabilities to to master
+        master_socket.sendall(b"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n")
+        # recv "OK" from master
+        master_socket.recv(4)
+        # send PSYNC command to sync. state of replica to master
+        master_socket.sendall(b"*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n")
+        # recv simple string
+        master_socket.recv(1024)
+
     while True:
         connection, address = server_socket.accept() # wait for client
         threading.Thread(target=process_client, args=(connection, server_info)).start()
