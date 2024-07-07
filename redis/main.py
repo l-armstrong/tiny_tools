@@ -2,8 +2,9 @@ import socket
 import threading
 
 store = {}
+repl_sockets = []
 
-def parse_resp(data, server_info):
+def parse_resp(data, connection, server_info):
     """ Redis serialization protocol parser
         https://redis.io/docs/latest/develop/reference/protocol-spec/
     """
@@ -26,6 +27,8 @@ def parse_resp(data, server_info):
                 # Delete the key in a seperate thread when the key expires
                 threading.Timer(expiry / 1000, lambda key: store.pop(key), (key,)).start()
             store[key] = value
+            for repl in repl_sockets:
+                repl.send(data)
             return "+OK\r\n".encode()
         case "get":
             if (key := client_request[1]) in store:
@@ -44,12 +47,16 @@ def parse_resp(data, server_info):
             return "+OK\r\n".encode()
         case "psync":
             if "?" in client_request and "-1" in client_request:
-                return f"+FULLRESYNC {server_info["master_replid"]} 0\r\n".encode()
+                output = f"+FULLRESYNC {server_info["master_replid"]} 0\r\n"
+                empty_rdb_content = bytes.fromhex("524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2")
+                output += f"${len(empty_rdb_content)}\r\n"
+                repl_sockets.append(connection)
+                return output.encode() + empty_rdb_content
 
 
 def process_client(connection, server_info):
     while data := connection.recv(1024):
-        response = parse_resp(data, server_info)
+        response = parse_resp(data, connection, server_info)
         connection.sendall(response)
 
 def main():
@@ -66,6 +73,7 @@ def main():
     master_replid = "".join(random.choices(string.ascii_letters + string.digits, k=40))
     master_host, master_port = args.replicaof.split() if args.replicaof else (None, None)
     server_info = {
+        "socket": server_socket,
         "port": args.port,
         "role": role,
         "master_replid": master_replid if master else None,
