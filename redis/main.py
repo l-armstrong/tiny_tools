@@ -73,7 +73,6 @@ def main():
     master_replid = "".join(random.choices(string.ascii_letters + string.digits, k=40))
     master_host, master_port = args.replicaof.split() if args.replicaof else (None, None)
     server_info = {
-        "socket": server_socket,
         "port": args.port,
         "role": role,
         "master_replid": master_replid if master else None,
